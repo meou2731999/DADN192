@@ -1,10 +1,17 @@
 package com.example.ver10;
 
+import android.app.Fragment;
+import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
+import android.widget.Toast;
 
+import com.example.ver10.ui.home.HomeFragment;
+import com.example.ver10.ui.home.HomeViewModel;
 import com.google.android.material.navigation.NavigationView;
 
+import androidx.annotation.RequiresApi;
+import androidx.fragment.app.FragmentManager;
 import androidx.navigation.NavController;
 import androidx.navigation.Navigation;
 import androidx.navigation.ui.AppBarConfiguration;
@@ -17,33 +24,47 @@ import org.eclipse.paho.client.mqttv3.IMqttDeliveryToken;
 import org.eclipse.paho.client.mqttv3.MqttCallbackExtended;
 import org.eclipse.paho.client.mqttv3.MqttException;
 import org.eclipse.paho.client.mqttv3.MqttMessage;
+import org.json.JSONArray;
+import org.json.JSONObject;
 
 import java.nio.charset.Charset;
+import java.util.Arrays;
 import java.util.Timer;
 import java.util.TimerTask;
 
 public class MainActivity extends AppCompatActivity {
 
     private AppBarConfiguration mAppBarConfiguration;
-    int counter = 0;
+
 
     MQTTHelper mqttHelper;
     public void startMQTT(){
+
         mqttHelper = new MQTTHelper(getApplicationContext());
         mqttHelper.setCallback(new MqttCallbackExtended() {
             @Override
             public void connectComplete(boolean b, String s) {
-
             }
 
             @Override
             public void connectionLost(Throwable throwable) {
-
             }
 
+            @RequiresApi(api = Build.VERSION_CODES.N)
             @Override
             public void messageArrived(String topic, MqttMessage mqttMessage) throws Exception {
-                Log.w("Debug",mqttMessage.toString());
+                Log.w("Debug",mqttMessage.toString().substring(1,mqttMessage.toString().length()-1));
+
+                JSONObject jsonObject = new JSONObject(mqttMessage.toString().substring(1,mqttMessage.toString().length()-1));
+                String device_id = jsonObject.getString("device_id");
+                JSONArray valuesArray = jsonObject.getJSONArray("values");
+
+                int temparature = Integer.parseInt(valuesArray.getString(0));
+                int humidity = Integer.parseInt(valuesArray.getString(1));
+
+                Log.w("Showdata",device_id + ": temp = " + temparature + ", humi = " + humidity);
+
+                //homeFragment.setValue(temparature,humidity);
             }
 
             @Override
@@ -54,29 +75,29 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void sendDataToMQTT(final String ID, final String value1, final String value2){
-        final Timer aTimer = new Timer();
-        TimerTask aTask = new TimerTask() {
-            @Override
-            public void run() {
-                MqttMessage msg = new MqttMessage();
-                msg.setId(1234);
-                msg.setQos(0);
-                msg.setRetained(true);
+//        //final Timer aTimer = new Timer();
+//        //TimerTask aTask = new TimerTask() {
+//            //@Override
+//            //public void run() {
+//
+//            }
+//        };
+//        //aTimer.schedule(aTask, 10000, 10000);
+        MqttMessage msg = new MqttMessage();
+        msg.setId(1234);
+        msg.setQos(0);
+        msg.setRetained(true);
 
-                //String data = ID + ":[" + value1 + "," + value2 + "]";
-                String data = "[{\"device_id\":\"Speaker\", \"values\":[\"" + value1 + "\",\"" + value2 + "\"]}]";
-                byte[] b = data.getBytes(Charset.forName("UTF-8"));
-                msg.setPayload(b);
+        String data = "[{\"device_id\":\"Speaker\", \"values\":[\"" + value1 + "\",\"" + value2 + "\"]}]";
+        byte[] b = data.getBytes(Charset.forName("UTF-8"));
+        msg.setPayload(b);
 
-                try {
-                    mqttHelper.mqttAndroidClient.publish("Topic/Speaker", msg);
-                    Log.e("publish","published");
+        try {
+            mqttHelper.mqttAndroidClient.publish("Topic/Speaker", msg);
+            Log.e("publish","[{\"device_id\":\"" + ID + "\", \"values\":[\"" + value1 + "\",\"" + value2 + "\"]}]");
 
-                }catch (MqttException e){
-                }
-            }
-        };
-        aTimer.schedule(aTask, 10000, 10000);
+        }catch (MqttException e){
+        }
     }
 
 
@@ -99,8 +120,13 @@ public class MainActivity extends AppCompatActivity {
         NavigationUI.setupActionBarWithNavController(this, navController, mAppBarConfiguration);
         NavigationUI.setupWithNavController(navigationView, navController);
 
+
+
         startMQTT();
-        sendDataToMQTT("Speaker","0","0");
+        //sendDataToMQTT("Speaker","1","1000");
+        FragmentManager fragmentManager = getSupportFragmentManager();
+        HomeFragment homeFragment = (HomeFragment) fragmentManager.findFragmentById(R.id.fragmentHome);
+        //homeFragment.setValue(15,25);
     }
 
     @Override
